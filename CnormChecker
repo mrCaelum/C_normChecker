@@ -1,0 +1,73 @@
+#!/bin/python3
+
+import sys
+import os
+import re
+
+class Checker(object):
+    """docstring for Checker."""
+
+    def __init__(self):
+        super(Checker, self).__init__()
+        self.maj = 0
+        self.min = 0
+        self.inf = 0
+
+    def major(self, err, file, msg):
+        print("\033[1;31m[MAJOR]\033[1m " + err)
+        print(file + "\033[0m: " + msg + "\n")
+        self.maj += 1
+
+    def minor(self, err, file, msg):
+        print("\033[1;32m[MINOR]\033[1m " + err)
+        print(file + "\033[0m: " + msg + "\n")
+        self.min += 1
+
+    def info(self, err, file, msg):
+        print("\033[1;34m[INFO]\033[1m " + err)
+        print(file + "\033[0m: " + msg + "\n")
+        self.inf += 1
+
+    def check_makefile(self, file):
+        print(file + ": Makefiles not handeled for now !\n")
+
+    def check_c_file(self, file):
+        str = open(file, "r").read()
+        if not re.search("^\/\*\n\*\* EPITECH PROJECT, (\d)+\n\*\* .+\n\*\* File description:\n\*\* .+\n\*\/", str):
+            self.major("G1", file, "Invalid file header !")
+
+    def check_h_file(self, file):
+        print(file + ": h files not handeled for now !\n")
+
+    def check_file(self, file):
+        if file.endswith("/Makefile"):
+            self.check_makefile(file)
+        elif file.endswith(".c"):
+            self.check_c_file(file)
+        elif file.endswith(".h"):
+            self.check_h_file(file)
+        else:
+            self.major("O1", file, "Unknown file type !")
+
+    def check_folder(self, path):
+        for element in os.listdir(path):
+            if os.path.isdir(element) and not element.startswith(".") and element != "bonus":
+                self.check_folder(path + "/" + element)
+            elif not element.startswith("."):
+                self.check_file(path + "/" + element)
+
+    def endprint(self):
+        print("\033[1;31m[MAJOR]\033[0m " + str(self.maj) + " | \033[1;32m[MINOR]\033[0m " + str(self.min) + " | \033[1;34m[INFO]\033[0m " + str(self.inf))
+
+
+def main():
+    checker = Checker()
+    try:
+        checker.check_folder(sys.argv[1])
+    except:
+        checker.check_folder(".")
+    print()
+    checker.endprint()
+
+if __name__ == "__main__":
+    main()
