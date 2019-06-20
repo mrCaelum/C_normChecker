@@ -2,44 +2,113 @@
 
 import sys
 import os
+import stat
 import re
+
+p_err = "\033[1;31m[ERROR]\033[0m "
+p_warn = "\033[1;33m[WARNING]\033[0m "
 
 class Checker(object):
     """docstring for Checker."""
 
-    def __init__(self):
+    def __init__(self, isDebug):
         super(Checker, self).__init__()
         self.maj = 0
         self.min = 0
         self.inf = 0
+        self.debug = isDebug
 
-    def major(self, err, file, msg):
-        print("\033[1;31m[MAJOR]\033[1m " + err)
-        print(file + "\033[0m: " + msg + "\n")
+    def major(self, err, file, line, msg):
+        print("\033[1;31m[MAJOR]\033[1m " + (err if err else ""))
+        print(file + "\033[0m:" + (str(line) + ": " if line else " ") + msg + "\n")
         self.maj += 1
 
-    def minor(self, err, file, msg):
-        print("\033[1;32m[MINOR]\033[1m " + err)
-        print(file + "\033[0m: " + msg + "\n")
+    def minor(self, err, file, line, msg):
+        print("\033[1;32m[MINOR]\033[1m " + (err if err else ""))
+        print(file + "\033[0m:" + (str(line) + ": " if line else " ") + msg + "\n")
         self.min += 1
 
-    def info(self, err, file, msg):
-        print("\033[1;34m[INFO]\033[1m " + err)
-        print(file + "\033[0m: " + msg + "\n")
+    def info(self, err, file, line, msg):
+        print("\033[1;34m[INFO]\033[1m " + (err if err else ""))
+        print(file + "\033[0m:" + (str(line) + ": " if line else " ") + msg + "\n")
         self.inf += 1
 
     def check_makefile(self, file):
         print(file + ": Makefiles not handeled for now !\n")
 
-    def check_c_file(self, file):
-        str = open(file, "r").read()
-        if not re.search("^\/\*\n\*\* EPITECH PROJECT, (\d)+\n\*\* .+\n\*\* File description:\n\*\* .+\n\*\/", str):
-            self.major("G1", file, "Invalid file header !")
+    def check_header(self, file, path):
+        lcount = 1
+        for line in file:
+            if lcount == 1 and not re.search("^\/\*$", line):
+                self.major("G1", path, lcount, "Invalid file header !")
+                break
+            elif lcount == 2 and not re.search("^\*\* EPITECH PROJECT, (\d)+$", line):
+                self.major("G1", path, lcount, "Invalid file header !")
+                break
+            elif lcount == 3 and not re.search("^\*\* .+$", line):
+                self.major("G1", path, lcount, "Invalid file header !")
+                break
+            elif lcount == 4 and not re.search("^\*\* File description:$", line):
+                self.major("G1", path, lcount, "Invalid file header !")
+                break
+            elif lcount == 5 and not re.search("^\*\* .+$", line):
+                self.major("G1", path, lcount, "Invalid file header !")
+                break
+            elif lcount == 6 and not re.search("^\*\/$", line):
+                self.major("G1", path, lcount, "Invalid file header !")
+                break
+            elif lcount == 7:
+                return lcount
+            lcount += 1
+        return lcount
+
+    def check_c_file(self, path):
+        print(path)
+        with open(path, "r") as file:
+            string = file.read().splitlines()
+            headersize = self.check_header(string, path)
+            indent = []
+            lcount = 1
+            inBlockCounter = 0
+            for line in string:
+                if lcount < headersize:
+                    lcount += 1
+                    continue
+                if lcount == headersize and line != "":
+                    self.minor(None, path, lcount, "Missing new line after header !")
+                elif lcount == headersize:
+                    continue
+                if re.search(".*\}.*", line) and not re.search(".*\{.*", line):
+                    indent.pop()
+                if self.debug:
+                    if not indent and line != "" and re.search("^ ", line):
+                        print("\033[1;31m", end="")
+                    elif indent and line != "" and not re.search("^(    ){" + str(len(indent)) + "}\S+.*", line):
+                        print("\033[1;31m", end="")
+                    print(str(len(indent)) + ": " + line + "\033[0m")
+                if re.search(".*\{.*", line) and not re.search(".*\}.*", line):
+                    indent.append("block")
+                elif re.search(".*for.*", line) or re.search(".*while.*", line) or re.search(".*if.*", line) or re.search(".*else if.*", line) or re.search(".*else.*", line):
+                    indent.append("once")
+                elif len(indent) > 0 and indent[len(indent) - 1] == "once":
+                    indent.pop()
+                if len(indent) > 0:
+                    inBlockCounter += 1
+                else:
+                    inBlockCounter = 0
+                lcount += 1
+                if inBlockCounter == 21:
+                    self.major("F4", path, lcount, "Too much lines in function !")
+                elif inBlockCounter > 21 and not (inBlockCounter - 1) % 5:
+                    self.major("F4", path, lcount, "Too much lines in function (" + str(inBlockCounter) + ") !")
 
     def check_h_file(self, file):
         print(file + ": h files not handeled for now !\n")
 
     def check_file(self, file):
+        if not os.access(file, os.R_OK):
+            print(p_warn + file + ": Cannot read this file")
+            return
         if file.endswith("/Makefile"):
             self.check_makefile(file)
         elif file.endswith(".c"):
@@ -47,9 +116,14 @@ class Checker(object):
         elif file.endswith(".h"):
             self.check_h_file(file)
         else:
-            self.major("O1", file, "Unknown file type !")
+            self.major("O1 / O2", file, None, "Unknown file type !")
 
     def check_folder(self, path):
+        if not is_snake_case(path):
+            self.major("O4", path, None, "Folders names must respect the snake_case convention !")
+        if not os.access(path, os.R_OK):
+            print(p_warn + path + ": Cannot open this folder")
+            return
         for element in os.listdir(path):
             if os.path.isdir(element) and not element.startswith(".") and element != "bonus":
                 self.check_folder(path + "/" + element)
@@ -60,11 +134,36 @@ class Checker(object):
         print("\033[1;31m[MAJOR]\033[0m " + str(self.maj) + " | \033[1;32m[MINOR]\033[0m " + str(self.min) + " | \033[1;34m[INFO]\033[0m " + str(self.inf))
 
 
+def is_snake_case(string):
+    return string == string.lower()
+
 def main():
-    checker = Checker()
-    try:
-        checker.check_folder(sys.argv[1])
-    except:
+    isDebug = False
+    if len(sys.argv) > 3:
+        print(p_err + "Invalid syntax")
+        exit(1)
+    if len(sys.argv) > 2:
+        if sys.argv[2] == "-d" or sys.argv[2] == "--debug":
+            isDebug = True
+        else:
+            print(p_err + "Invalid syntax")
+            exit(1)
+    if len(sys.argv) > 1 and (sys.argv[1] == "-d" or sys.argv[1] == "--debug"):
+        isDebug = True
+    checker = Checker(isDebug)
+    if len(sys.argv) > 1 and not (sys.argv[1] == "-d" or sys.argv[1] == "--debug"):
+        try:
+            md = os.stat(sys.argv[1]).st_mode
+        except:
+            print(p_err + sys.argv[1] + ": No such file or directory")
+            exit(2)
+        if stat.S_ISDIR(md):
+            checker.check_folder(sys.argv[1])
+        elif stat.S_ISREG(md):
+            checker.check_file(sys.argv[1])
+        else:
+            print(p_err + sys.argv[1] + ": Invalid file")
+    else:
         checker.check_folder(".")
     print()
     checker.endprint()
