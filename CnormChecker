@@ -69,23 +69,42 @@ class Checker(object):
             headersize = self.check_header(string, path)
             indent = []
             lcount = 1
+            emptyLine = 0
             inBlockCounter = 0
             for line in string:
                 if lcount < headersize:
                     lcount += 1
                     continue
                 if lcount == headersize and line != "":
-                    self.minor(None, path, lcount, "Missing new line after header !")
+                    self.info(None, path, lcount, "Missing new line after header !")
                 elif lcount == headersize:
                     continue
+                if emptyLine == 1:
+                    if line != "":
+                        self.minor("G2", path, lcount, "One and only one empty line should separate the implementation of functions")
+                    emptyLine = 0
+                elif emptyLine == 2:
+                    emptyLine = 0
+                elif line == "":
+                    self.minor("G2", path, lcount, "One and only one empty line should separate the implementation of functions")
                 if re.search(".*\}.*", line) and not re.search(".*\{.*", line):
                     indent.pop()
+                    if len(indent) == 0:
+                        emptyLine = 1
+                elif len(indent) == 0 and re.search("\#.*", line):
+                    emptyLine = 2
+                if len(indent) == 0 and line != "" and re.search("^ ", line):
+                    if self.debug:
+                        print("\033[1;31m", end="")
+                    self.minor("L2", path, lcount, "Bad indentation")
+                elif len(indent) > 0 and line != "" and not re.search("^(    ){" + str(len(indent)) + "}\S+.*", line):
+                    if self.debug:
+                        print("\033[1;31m", end="")
+                    self.minor("L2", path, lcount, "Bad indentation")
                 if self.debug:
-                    if not indent and line != "" and re.search("^ ", line):
-                        print("\033[1;31m", end="")
-                    elif indent and line != "" and not re.search("^(    ){" + str(len(indent)) + "}\S+.*", line):
-                        print("\033[1;31m", end="")
                     print(str(len(indent)) + ": " + line + "\033[0m")
+                if len(indent) > 0 and re.search(".*\/\/.*", line):
+                    self.minor("F6", path, lcount, "There should be no comment inside a function")
                 if re.search(".*\{.*", line) and not re.search(".*\}.*", line):
                     indent.append("block")
                 elif re.search(".*for.*", line) or re.search(".*while.*", line) or re.search(".*if.*", line) or re.search(".*else if.*", line) or re.search(".*else.*", line):
