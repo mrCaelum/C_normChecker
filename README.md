@@ -30,7 +30,7 @@ A simple Python script to check the Epitech C coding style.
 - [ ] Naming identifiers
 - [ ] Structures
 - [ ] Pointers
-- [ ] Conditionnal branching
+- [ ] Conditional branching
 - [ ] Ternary
 - [ ] Goto
 - [ ] Constant pointers
