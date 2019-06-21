@@ -20,17 +20,17 @@ class Checker(object):
 
     def major(self, err, file, line, msg):
         print("\033[1;31m[MAJOR]\033[1m " + (err if err else ""))
-        print(file + "\033[0m:" + (str(line) + ": " if line else " ") + msg + "\n")
+        print(file + "\033[0m:" + (str(line + 1) + ": " if line else " ") + msg + "\n")
         self.maj += 1
 
     def minor(self, err, file, line, msg):
         print("\033[1;32m[MINOR]\033[1m " + (err if err else ""))
-        print(file + "\033[0m:" + (str(line) + ": " if line else " ") + msg + "\n")
+        print(file + "\033[0m:" + (str(line + 1) + ": " if line else " ") + msg + "\n")
         self.min += 1
 
     def info(self, err, file, line, msg):
         print("\033[1;34m[INFO]\033[1m " + (err if err else ""))
-        print(file + "\033[0m:" + (str(line) + ": " if line else " ") + msg + "\n")
+        print(file + "\033[0m:" + (str(line + 1) + ": " if line else " ") + msg + "\n")
         self.inf += 1
 
     def check_makefile(self, file):
@@ -71,6 +71,9 @@ class Checker(object):
             lcount = 1
             emptyLine = 0
             inBlockCounter = 0
+            print(getFuncNumber(string))
+            if getFuncNumber(string) > 5:
+                self.major("O3", path, None, "Too much functions in file !")
             for line in string:
                 if lcount < headersize:
                     lcount += 1
@@ -79,6 +82,8 @@ class Checker(object):
                     self.info(None, path, lcount, "Missing new line after header !")
                 elif lcount == headersize:
                     continue
+                if len(line) > 80:
+                    self.major("F3", path, lcount, "The length of a line should not exceed 80 columns")
                 if emptyLine == 1:
                     if line != "":
                         self.minor("G2", path, lcount, "One and only one empty line should separate the implementation of functions")
@@ -155,6 +160,17 @@ class Checker(object):
 
 def is_snake_case(string):
     return string == string.lower()
+
+def getFuncNumber(string):
+    tmp = 0
+    counter = 0
+    for line in string:
+        if (re.search(".*\(.*\)$", line)):
+            tmp = 1
+        elif tmp == 1 and line == "{":
+            tmp = 0
+            counter += 1
+    return counter
 
 def main():
     isDebug = False
