@@ -4,33 +4,40 @@ import sys
 import os
 import stat
 import re
+import getopt
+
+VERSION = "0.0.1"
 
 p_err = "\033[1;31m[ERROR]\033[0m "
 p_warn = "\033[1;33m[WARNING]\033[0m "
 
 class Checker(object):
-    """docstring for Checker."""
 
-    def __init__(self, isDebug):
+    def __init__(self, isDebug, isRecursive, isSilent):
         super(Checker, self).__init__()
         self.maj = 0
         self.min = 0
         self.inf = 0
         self.debug = isDebug
+        self.recursive = isRecursive
+        self.silent = isSilent
 
     def major(self, err, file, line, msg):
-        print("\033[1;31m[MAJOR]\033[1m " + (err if err else ""))
-        print(file + "\033[0m:" + (str(line + 1) + ": " if line else " ") + msg + "\n")
+        if not self.silent:
+            print("\033[1;31m[MAJOR]\033[1m " + (err if err else ""))
+            print(file + "\033[0m:" + (str(line) + ": " if line else " ") + msg + "\n")
         self.maj += 1
 
     def minor(self, err, file, line, msg):
-        print("\033[1;32m[MINOR]\033[1m " + (err if err else ""))
-        print(file + "\033[0m:" + (str(line + 1) + ": " if line else " ") + msg + "\n")
+        if not self.silent:
+            print("\033[1;32m[MINOR]\033[1m " + (err if err else ""))
+            print(file + "\033[0m:" + (str(line) + ": " if line else " ") + msg + "\n")
         self.min += 1
 
     def info(self, err, file, line, msg):
-        print("\033[1;34m[INFO]\033[1m " + (err if err else ""))
-        print(file + "\033[0m:" + (str(line + 1) + ": " if line else " ") + msg + "\n")
+        if not self.silent:
+            print("\033[1;34m[INFO]\033[1m " + (err if err else ""))
+            print(file + "\033[0m:" + (str(line) + ": " if line else " ") + msg + "\n")
         self.inf += 1
 
     def check_makefile(self, file):
@@ -99,14 +106,14 @@ class Checker(object):
                 elif len(indent) == 0 and re.search("\#.*", line):
                     emptyLine = 2
                 if len(indent) == 0 and line != "" and re.search("^ ", line):
-                    if self.debug:
+                    if not self.silent and self.debug:
                         print("\033[1;31m", end="")
                     self.minor("L2", path, lcount, "Bad indentation")
                 elif len(indent) > 0 and line != "" and not re.search("^(    ){" + str(len(indent)) + "}\S+.*", line):
-                    if self.debug:
+                    if not self.silent and self.debug:
                         print("\033[1;31m", end="")
                     self.minor("L2", path, lcount, "Bad indentation")
-                if self.debug:
+                if not self.silent and self.debug:
                     print(str(len(indent)) + ": " + line + "\033[0m")
                 if len(indent) > 0 and re.search(".*\/\/.*", line):
                     self.minor("F6", path, lcount, "There should be no comment inside a function")
@@ -130,6 +137,8 @@ class Checker(object):
         print(file + ": h files not handeled for now !\n")
 
     def check_file(self, file):
+        print("\n\033[1;36m", end="")
+        print(file, ":\033[0m")
         if not os.access(file, os.R_OK):
             print(p_warn + file + ": Cannot read this file")
             return
@@ -149,7 +158,7 @@ class Checker(object):
             print(p_warn + path + ": Cannot open this folder")
             return
         for element in os.listdir(path):
-            if os.path.isdir(element) and not element.startswith(".") and element != "bonus":
+            if self.recursive and os.path.isdir(element) and not element.startswith(".") and element != "bonus":
                 self.check_folder(path + "/" + element)
             elif not element.startswith("."):
                 self.check_file(path + "/" + element)
@@ -172,36 +181,91 @@ def getFuncNumber(string):
             counter += 1
     return counter
 
-def main():
-    isDebug = False
-    if len(sys.argv) > 3:
-        print(p_err + "Invalid syntax")
-        exit(1)
-    if len(sys.argv) > 2:
-        if sys.argv[2] == "-d" or sys.argv[2] == "--debug":
-            isDebug = True
-        else:
-            print(p_err + "Invalid syntax")
-            exit(1)
-    if len(sys.argv) > 1 and (sys.argv[1] == "-d" or sys.argv[1] == "--debug"):
-        isDebug = True
-    checker = Checker(isDebug)
-    if len(sys.argv) > 1 and not (sys.argv[1] == "-d" or sys.argv[1] == "--debug"):
-        try:
-            md = os.stat(sys.argv[1]).st_mode
-        except:
-            print(p_err + sys.argv[1] + ": No such file or directory")
-            exit(2)
-        if stat.S_ISDIR(md):
-            checker.check_folder(sys.argv[1])
-        elif stat.S_ISREG(md):
-            checker.check_file(sys.argv[1])
-        else:
-            print(p_err + sys.argv[1] + ": Invalid file")
+def help():
+    print("\033[0;36mCnormChecker\033[1;33m", VERSION, "\033[0m")
+    print("\n\033[33mDEFAULT BEHAVIOR:\033[0m")
+    print("\tCheck every files in the current folder recursively")
+    print("\n\033[33mUSAGE:\033[0m")
+    print("\t", sys.argv[0], "[OPTIONS] [FILES / FOLDERS]")
+    print("\n\033[33mOPTIONS:\033[0m")
+    print("\t\033[32m-h\033[0m,\033[32m--help\033[0m")
+    print("\t\tPrint this help message.")
+    print("\t\033[32m-v\033[0m,\033[32m--version\033[0m")
+    print("\t\tShow version information.")
+    print("\t\033[32m-s\033[0m,\033[32m--silent\033[0m")
+    print("\t\tEnable silent mode.")
+    print("\t\033[32m-D\033[0m,\033[32m--debug\033[0m")
+    print("\t\tAdd some debug output.")
+    print("\t\033[32m-R\033[0m,\033[32m--recursive\033[0m")
+    print("\t\tEnable recursive mode.")
+    print("\n\033[33mARGS:\033[0m")
+    print("\t\033[32m<FILE>\033[0m")
+    print("\t\tFile(s) to check.")
+    print("\t\033[32m<FOLDER>\033[0m")
+    print("\t\tFolder(s) that every files inside will be check.")
+    print("\n2019 © Louis Kleiver")
+
+def version():
+    print("\033[0;36mCnormChecker\033[1;33m", VERSION, "\033[0m")
+    print("2019 © Louis Kleiver")
+
+def argError():
+    print("\033[1;31mInvalid syntax :\033[0m")
+    print("\tType '", end="")
+    print(sys.argv[0], "--help' for help.")
+    exit(1)
+
+def readFile(checker, file):
+    try:
+        md = os.stat(file).st_mode
+    except:
+        print(p_err + file + ": No such file or directory")
+        exit(2)
+    if stat.S_ISDIR(md):
+        checker.check_folder(file)
+    elif stat.S_ISREG(md):
+        checker.check_file(file)
     else:
-        checker.check_folder(".")
+        print(p_err + file + ": Invalid file")
+
+def main():
+    args = sys.argv.copy()
+    args.pop(0)
+    try:
+        optlist, args = getopt.getopt(args, "RDs", ["recursive", "debug", "silent"])
+    except:
+        argError()
+    files = []
+    recursive = False
+    debug = False
+    silent = False
+    if len(args) <= 0:
+        files.append(".")
+        recursive = True
+    else:
+        for arg in args:
+            files.append(arg)
+        for opt in optlist:
+            if (opt[0] == "-R" or opt[0] =="--recursive") and not opt[1]:
+                recursive = True
+            elif (opt[0] == "-D" or opt[0] =="--debug") and not opt[1]:
+                debug = True
+            elif (opt[0] == "-s" or opt[0] =="--silent") and not opt[1]:
+                silent = True
+            else:
+                argError()
+    checker = Checker(debug, recursive, silent)
+    for file in files:
+        readFile(checker, file)
     print()
     checker.endprint()
 
 if __name__ == "__main__":
+    if len(sys.argv) == 2:
+        if sys.argv[1] == "-h" or sys.argv[1] == "--help":
+            help()
+            exit(0)
+        elif sys.argv[1] == "-v" or sys.argv[1] == "--version":
+            version()
+            exit(0)
     main()
