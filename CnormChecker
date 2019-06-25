@@ -79,11 +79,11 @@ class Error(object):
     
     def print(self):
         if self.type == "major":
-            print(p_major, (self.type if self.type else ""))
+            print(p_major, (self.code if self.code else ""))
         elif self.type == "minor":
-            print(p_minor, (self.type if self.type else ""))
+            print(p_minor, (self.code if self.code else ""))
         elif self.type == "info":
-            print(p_info, (self.type if self.type else ""))
+            print(p_info, (self.code if self.code else ""))
         print(self.file + "\033[0m:" + (str(self.line) + ": " if self.line else " ") + self.msg + "\n")
 
 
@@ -123,69 +123,61 @@ class File(object):
             self.errors.append(Error(MAJOR, "O1 / O2", self.path, None, "Unknown file type !"))
     
     def checkC(self):
-        with open(self.path, "r") as file:
-            string = file.read().splitlines()
-            headersize = check_header(self, string, self.path)
-            indent = []
-            emptyLine = 0
-            inBlockCounter = 0
-            if getFuncNumber(string) > 5:
-                self.errors.append(Error(MAJOR, "O3", self.path, None, "Too much functions in file !"))
-            for lcount, line in enumerate(string):
-                if lcount < headersize:
-                    continue
-                elif lcount == headersize and line != "":
-                    self.errors.append(Error(INFO, None, self.path, lcount, "Missing new line after header !"))
-                elif lcount == headersize:
-                    continue
-                if len(line) > 80:
-                    self.errors.append(Error(MAJOR, "F3", self.path, lcount, "The length of a line should not exceed 80 columns"))
-                if emptyLine == 1:
-                    if line != "":
-                        self.errors.append(Error(MINOR, "G2", self.path, lcount, "One and only one empty line should separate the implementation of functions"))
-                    emptyLine = 0
-                elif emptyLine == 2:
-                    emptyLine = 0
-                elif line == "":
+        headersize = check_header(self, self.content, self.path)
+        indent = []
+        emptyLine = 0
+        inBlockCounter = 0
+        if getFuncNumber(self.content) > 5:
+            self.errors.append(Error(MAJOR, "O3", self.path, None, "Too much functions in file !"))
+        for lcount, line in enumerate(self.content):
+            if lcount < headersize:
+                continue
+            elif lcount == headersize and line != "\n":
+                self.errors.append(Error(INFO, None, self.path, lcount, "Missing new line after header !"))
+            elif lcount == headersize:
+                continue
+            if len(line) > 80:
+                self.errors.append(Error(MAJOR, "F3", self.path, lcount, "The length of a line should not exceed 80 columns"))
+            if emptyLine == 1:
+                if line != "\n":
                     self.errors.append(Error(MINOR, "G2", self.path, lcount, "One and only one empty line should separate the implementation of functions"))
-                if re.search(".*\}.*", line) and not re.search(".*\{.*", line):
+                emptyLine = 0
+            elif emptyLine == 2:
+                emptyLine = 0
+            elif line == "\n":
+                self.errors.append(Error(MINOR, "G2", self.path, lcount, "One and only one empty line should separate the implementation of functions"))
+            if re.search(".*\}.*", line) and not re.search(".*\{.*", line):
+                indent.pop()
+                if len(indent) == 0:
+                    emptyLine = 1
+            elif len(indent) == 0 and re.search("\#.*", line):
+                emptyLine = 2
+            if len(indent) == 0 and line != "" and re.search("^ ", line):
+                self.errors.append(Error(MINOR, "L2", self.path, lcount, "Bad indentation"))
+            elif len(indent) > 0 and line != "" and not re.search("^(    ){" + str(len(indent)) + "}\S+.*", line):
+                self.errors.append(Error(MINOR, "L2", self.path, lcount, "Bad indentation"))
+            if len(indent) > 0 and (re.search(".*\/\/.*", line) or re.search(".*\/\*.*", line)):
+                self.errors.append(Error(MINOR, "F6", self.path, lcount, "There should be no comment inside a function"))
+            if re.search(".*\{.*", line) and not re.search(".*\}.*", line):
+                indent.append("block")
+                if len(indent) > 3:
+                    self.errors.append(Error(MINOR, "C1", self.path, lcount, "Conditional branching"))
+            elif re.search(".*for.*", line) or re.search(".*while.*", line) or re.search(".*if.*", line) or re.search(".*else if.*", line) or re.search(".*else.*", line):
+                indent.append("once")
+                if len(indent) > 3:
+                    self.errors.append(Error(MINOR, "C1", self.path, lcount, "Conditional branching"))
+            elif len(indent) > 0 and indent[len(indent) - 1] == "once":
+                while indent[len(indent) - 1] == "once":
                     indent.pop()
-                    if len(indent) == 0:
-                        emptyLine = 1
-                elif len(indent) == 0 and re.search("\#.*", line):
-                    emptyLine = 2
-                if len(indent) == 0 and line != "" and re.search("^ ", line):
-                    self.errors.append(Error(MINOR, "L2", self.path, lcount, "Bad indentation"))
-                    if not opt.silent and opt.debug:
-                        print("\033[1;31m", end="")
-                elif len(indent) > 0 and line != "" and not re.search("^(    ){" + str(len(indent)) + "}\S+.*", line):
-                    self.errors.append(Error(MINOR, "L2", self.path, lcount, "Bad indentation"))
-                    if not opt.silent and opt.debug:
-                        print("\033[1;31m", end="")
-                if not opt.silent and opt.debug:
-                    print(indent, ": " + line + "\033[0m")
-                if len(indent) > 0 and re.search(".*\/\/.*", line):
-                    self.errors.append(Error(MINOR, "F6", self.path, lcount, "There should be no comment inside a function"))
-                if re.search(".*\{.*", line) and not re.search(".*\}.*", line):
-                    indent.append("block")
-                    if len(indent) > 3:
-                        self.errors.append(Error(MINOR, "C1", self.path, lcount, "Conditional branching"))
-                elif re.search(".*for.*", line) or re.search(".*while.*", line) or re.search(".*if.*", line) or re.search(".*else if.*", line) or re.search(".*else.*", line):
-                    indent.append("once")
-                    if len(indent) > 3:
-                        self.errors.append(Error(MINOR, "C1", self.path, lcount, "Conditional branching"))
-                elif len(indent) > 0 and indent[len(indent) - 1] == "once":
-                    while indent[len(indent) - 1] == "once":
-                        indent.pop()
-                if len(indent) > 0:
-                    inBlockCounter += 1
-                else:
-                    inBlockCounter = 0
-                if inBlockCounter == 22:
-                    self.errors.append(Error(MAJOR, "F4", self.path, lcount, "Too much lines in function !"))
-                elif inBlockCounter > 22 and not (inBlockCounter - 2) % 5:
-                    self.errors.append(Error(MAJOR, "F4", self.path, lcount, "Too much lines in function (" + str(inBlockCounter - 1) + ") !"))
-    
+            if len(indent) > 0:
+                inBlockCounter += 1
+            else:
+                inBlockCounter = 0
+            if inBlockCounter == 22:
+                self.errors.append(Error(MAJOR, "F4", self.path, lcount, "Too much lines in function !"))
+            elif inBlockCounter > 22 and not (inBlockCounter - 2) % 5:
+                self.errors.append(Error(MAJOR, "F4", self.path, lcount, "Too much lines in function (" + str(inBlockCounter - 1) + ") !"))
+
     def checkH(self):
         print(self.path + ": Header files not handeled for now !\n")
     
@@ -259,13 +251,26 @@ def endprint():
     info_nb = 0
     for file in files:
         for error in file.errors:
-            error.print()
             if error.type == MAJOR:
                 major_nb += 1
+                if not opt.silent and opt.debug:
+                    file.content[error.line - 1] = "\033[1;31m" + ("#" if file.content[error.line - 1] == "\n" else "") + file.content[error.line - 1] + "\033[0m"
             elif error.type == MINOR:
                 minor_nb += 1
+                if not opt.silent and opt.debug:
+                    file.content[error.line - 1] = "\033[1;32m" + ("#" if file.content[error.line - 1] == "\n" else "") + file.content[error.line - 1] + "\033[0m"
             elif error.type == INFO:
                 info_nb += 1
+                if not opt.silent and opt.debug:
+                    file.content[error.line - 1] = "\033[1;34m" + ("#" if file.content[error.line - 1] == "\n" else "") + file.content[error.line - 1] + "\033[0m"
+        if not opt.silent and opt.debug:
+            print(file.path + ":")
+            print("---------------------------------------------------------------------------")
+            for line in file.content:
+                print(line, end="")
+            print("\n---------------------------------------------------------------------------\n")
+        for error in file.errors:
+            error.print()
     print("\033[1;31m[MAJOR]\033[0m " + str(major_nb) + " | \033[1;32m[MINOR]\033[0m " + str(minor_nb) + " | \033[1;34m[INFO]\033[0m " + str(info_nb))
 
 def main():
