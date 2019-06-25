@@ -265,10 +265,10 @@ def endprint():
                     file.content[error.line - 1] = "\033[1;34m" + ("#" if file.content[error.line - 1] == "\n" or re.search("^\ +\n$", file.content[error.line - 1]) else "") + file.content[error.line - 1] + "\033[0m"
         if not opt.silent and opt.debug:
             print(file.path + ":")
-            print("---------------------------------------------------------------------------")
+            print("--------------------------------------------------------------------------")
             for i, line in enumerate(file.content):
                 print(i, "\t| ", end=line)
-            print("---------------------------------------------------------------------------\n")
+            print("--------------------------------------------------------------------------\n")
         for error in file.errors:
             error.print()
     print("\033[1;31m[MAJOR]\033[0m " + str(major_nb) + " | \033[1;32m[MINOR]\033[0m " + str(minor_nb) + " | \033[1;34m[INFO]\033[0m " + str(info_nb))
