@@ -11,6 +11,9 @@ MAJOR = "major"
 MINOR = "minor"
 INFO = "info"
 
+shortargs = "RDs"
+longargs = ["recursive", "debug", "silent"]
+
 p_err = "\033[1;31m[ERROR]\033[0m"
 p_warn = "\033[1;33m[WARNING]\033[0m"
 p_major = "\033[1;31m[MAJOR]\033[1m"
@@ -108,7 +111,7 @@ class File(object):
         self.check()
     
     def check(self):
-        if self.path != self.path.lower():
+        if not self.path.endswith("Makefile") and self.path != self.path.lower():
             self.errors.append(Error(MAJOR, "O4", self.path, None, "Folders names must respect the snake_case convention !"))
         if self.type == "C":
             self.checkC()
@@ -116,6 +119,8 @@ class File(object):
             self.checkH()
         elif self.type == "M":
             self.checkM()
+        else:
+            self.errors.append(Error(MAJOR, "O1 / O2", self.path, None, "Unknown file type !"))
     
     def checkC(self):
         with open(self.path, "r") as file:
@@ -267,7 +272,7 @@ def main():
     args = sys.argv.copy()
     args.pop(0)
     try:
-        optlist, args = getopt.getopt(args, "RDs", ["recursive", "debug", "silent"])
+        optlist, args = getopt.getopt(args, shortargs, longargs)
     except:
         argError()
     Rfiles = []
