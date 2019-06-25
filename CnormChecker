@@ -6,7 +6,7 @@ import stat
 import re
 import getopt
 
-VERSION = "0.0.3"
+VERSION = "0.0.4"
 MAJOR = "major"
 MINOR = "minor"
 INFO = "info"
@@ -152,9 +152,9 @@ class File(object):
                     emptyLine = 1
             elif len(indent) == 0 and re.search("\#.*", line):
                 emptyLine = 2
-            if len(indent) == 0 and line != "" and re.search("^ ", line):
+            if len(indent) == 0 and line != "\n" and re.search("^ ", line):
                 self.errors.append(Error(MINOR, "L2", self.path, lcount, "Bad indentation"))
-            elif len(indent) > 0 and line != "" and not re.search("^(    ){" + str(len(indent)) + "}\S+.*", line):
+            elif len(indent) > 0 and line != "\n" and not re.search("^(    ){" + str(len(indent)) + "}\S+.*", line):
                 self.errors.append(Error(MINOR, "L2", self.path, lcount, "Bad indentation"))
             if len(indent) > 0 and (re.search(".*\/\/.*", line) or re.search(".*\/\*.*", line)):
                 self.errors.append(Error(MINOR, "F6", self.path, lcount, "There should be no comment inside a function"))
@@ -254,21 +254,21 @@ def endprint():
             if error.type == MAJOR:
                 major_nb += 1
                 if not opt.silent and opt.debug:
-                    file.content[error.line - 1] = "\033[1;31m" + ("#" if file.content[error.line - 1] == "\n" else "") + file.content[error.line - 1] + "\033[0m"
+                    file.content[error.line - 1] = "\033[1;31m" + ("#" if file.content[error.line - 1] == "\n" or re.search("^\ +\n$", file.content[error.line - 1]) else "") + file.content[error.line - 1] + "\033[0m"
             elif error.type == MINOR:
                 minor_nb += 1
                 if not opt.silent and opt.debug:
-                    file.content[error.line - 1] = "\033[1;32m" + ("#" if file.content[error.line - 1] == "\n" else "") + file.content[error.line - 1] + "\033[0m"
+                    file.content[error.line - 1] = "\033[1;32m" + ("#" if file.content[error.line - 1] == "\n" or re.search("^\ +\n$", file.content[error.line - 1]) else "") + file.content[error.line - 1] + "\033[0m"
             elif error.type == INFO:
                 info_nb += 1
                 if not opt.silent and opt.debug:
-                    file.content[error.line - 1] = "\033[1;34m" + ("#" if file.content[error.line - 1] == "\n" else "") + file.content[error.line - 1] + "\033[0m"
+                    file.content[error.line - 1] = "\033[1;34m" + ("#" if file.content[error.line - 1] == "\n" or re.search("^\ +\n$", file.content[error.line - 1]) else "") + file.content[error.line - 1] + "\033[0m"
         if not opt.silent and opt.debug:
             print(file.path + ":")
             print("---------------------------------------------------------------------------")
-            for line in file.content:
-                print(line, end="")
-            print("\n---------------------------------------------------------------------------\n")
+            for i, line in enumerate(file.content):
+                print(i, "\t| ", end=line)
+            print("---------------------------------------------------------------------------\n")
         for error in file.errors:
             error.print()
     print("\033[1;31m[MAJOR]\033[0m " + str(major_nb) + " | \033[1;32m[MINOR]\033[0m " + str(minor_nb) + " | \033[1;34m[INFO]\033[0m " + str(info_nb))
