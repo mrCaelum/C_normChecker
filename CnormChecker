@@ -6,211 +6,29 @@ import stat
 import re
 import getopt
 
-VERSION = "0.0.2"
+VERSION = "0.0.3"
+MAJOR = "major"
+MINOR = "minor"
+INFO = "info"
 
-p_err = "\033[1;31m[ERROR]\033[0m "
-p_warn = "\033[1;33m[WARNING]\033[0m "
-
-def check_header(checker, file, path):
-    lcount = 0
-    for line in file:
-        if lcount == 0 and not re.search("^\/\*$", line):
-            checker.major("G1", path, lcount, "Invalid file header !")
-            break
-        elif lcount == 1 and not re.search("^\*\* EPITECH PROJECT, (\d)+$", line):
-            checker.major("G1", path, lcount, "Invalid file header !")
-            break
-        elif lcount == 2 and not re.search("^\*\* .+$", line):
-            checker.major("G1", path, lcount, "Invalid file header !")
-            break
-        elif lcount == 3 and not re.search("^\*\* File description:$", line):
-            checker.major("G1", path, lcount, "Invalid file header !")
-            break
-        elif lcount == 4 and not re.search("^\*\* .+$", line):
-            checker.major("G1", path, lcount, "Invalid file header !")
-            break
-        elif lcount == 5 and not re.search("^\*\/$", line):
-            checker.major("G1", path, lcount, "Invalid file header !")
-            break
-        elif lcount == 6:
-            return lcount
-        lcount += 1
-    return lcount
+p_err = "\033[1;31m[ERROR]\033[0m"
+p_warn = "\033[1;33m[WARNING]\033[0m"
+p_major = "\033[1;31m[MAJOR]\033[1m"
+p_minor = "\033[1;32m[MINOR]\033[1m"
+p_info = "\033[1;34m[INFO]\033[1m"
 
 
-class Makefile(object):
+class Options(object):
 
-    def __init__(self, path, checker):
-        super(Makefile, self).__init__()
-        self.path = path
-        self.checker = checker
-
-    def check(self):
-        print(self.path + ": Makefiles not handeled for now !\n")
+    def __init__(self):
+        super(Options, self).__init__()
+        self.debug = False
+        self.recursive = False
+        self.silent = False
 
 
-class Hfile(object):
-
-    def __init__(self, path, checker):
-        super(Hfile, self).__init__()
-        self.path = path
-        self.checker = checker
-
-    def check(self):
-        print(self.path + ": Header files not handeled for now !\n")
-
-
-class Cfile(object):
-
-    def __init__(self, path, checker):
-        super(Cfile, self).__init__()
-        self.path = path
-        self.checker = checker
-    
-    def check(self):
-        with open(self.path, "r") as file:
-            string = file.read().splitlines()
-            headersize = check_header(self.checker, string, self.path)
-            indent = []
-            emptyLine = 0
-            inBlockCounter = 0
-            if getFuncNumber(string) > 5:
-                self.checker.major("O3", self.path, None, "Too much functions in file !")
-            for lcount, line in enumerate(string):
-                if lcount < headersize:
-                    continue
-                elif lcount == headersize and line != "":
-                    self.checker.info(None, self.path, lcount, "Missing new line after header !")
-                elif lcount == headersize:
-                    continue
-                if len(line) > 80:
-                    self.checker.major("F3", self.path, lcount, "The length of a line should not exceed 80 columns")
-                if emptyLine == 1:
-                    if line != "":
-                        self.checker.minor("G2", self.path, lcount, "One and only one empty line should separate the implementation of functions")
-                    emptyLine = 0
-                elif emptyLine == 2:
-                    emptyLine = 0
-                elif line == "":
-                    self.checker.minor("G2", self.path, lcount, "One and only one empty line should separate the implementation of functions")
-                if re.search(".*\}.*", line) and not re.search(".*\{.*", line):
-                    indent.pop()
-                    if len(indent) == 0:
-                        emptyLine = 1
-                elif len(indent) == 0 and re.search("\#.*", line):
-                    emptyLine = 2
-                if len(indent) == 0 and line != "" and re.search("^ ", line):
-                    self.checker.minor("L2", self.path, lcount, "Bad indentation")
-                    if not self.checker.silent and self.checker.debug:
-                        print("\033[1;31m", end="")
-                elif len(indent) > 0 and line != "" and not re.search("^(    ){" + str(len(indent)) + "}\S+.*", line):
-                    self.checker.minor("L2", self.path, lcount, "Bad indentation")
-                    if not self.checker.silent and self.checker.debug:
-                        print("\033[1;31m", end="")
-                if not self.checker.silent and self.checker.debug:
-                    print(indent, ": " + line + "\033[0m")
-                if len(indent) > 0 and re.search(".*\/\/.*", line):
-                    self.checker.minor("F6", self.path, lcount, "There should be no comment inside a function")
-                if re.search(".*\{.*", line) and not re.search(".*\}.*", line):
-                    indent.append("block")
-                    if len(indent) > 3:
-                        self.checker.minor("C1", self.path, lcount, "Conditional branching")
-                elif re.search(".*for.*", line) or re.search(".*while.*", line) or re.search(".*if.*", line) or re.search(".*else if.*", line) or re.search(".*else.*", line):
-                    indent.append("once")
-                    if len(indent) > 3:
-                        self.checker.minor("C1", self.path, lcount, "Conditional branching")
-                elif len(indent) > 0 and indent[len(indent) - 1] == "once":
-                    while indent[len(indent) - 1] == "once":
-                        indent.pop()
-                if len(indent) > 0:
-                    inBlockCounter += 1
-                else:
-                    inBlockCounter = 0
-                if inBlockCounter == 22:
-                    self.checker.major("F4", self.path, lcount, "Too much lines in function !")
-                elif inBlockCounter > 22 and not (inBlockCounter - 2) % 5:
-                    self.checker.major("F4", self.path, lcount, "Too much lines in function (" + str(inBlockCounter - 1) + ") !")
-
-
-class Checker(object):
-
-    def __init__(self, isDebug, isRecursive, isSilent):
-        super(Checker, self).__init__()
-        self.maj = 0
-        self.min = 0
-        self.inf = 0
-        self.debug = isDebug
-        self.recursive = isRecursive
-        self.silent = isSilent
-
-    def major(self, err, file, line, msg):
-        if not self.silent:
-            print("\033[1;31m[MAJOR]\033[1m " + (err if err else ""))
-            print(file + "\033[0m:" + (str(line + 1) + ": " if line else " ") + msg + "\n")
-        self.maj += 1
-
-    def minor(self, err, file, line, msg):
-        if not self.silent:
-            print("\033[1;32m[MINOR]\033[1m " + (err if err else ""))
-            print(file + "\033[0m:" + (str(line + 1) + ": " if line else " ") + msg + "\n")
-        self.min += 1
-
-    def info(self, err, file, line, msg):
-        if not self.silent:
-            print("\033[1;34m[INFO]\033[1m " + (err if err else ""))
-            print(file + "\033[0m:" + (str(line + 1) + ": " if line else " ") + msg + "\n")
-        self.inf += 1
-
-    def check_makefile(self, file):
-        print(file + ": Makefiles not handeled for now !\n")
-
-    def check_file(self, file):
-        print("\n\033[1;36m", end="")
-        print(file, ":\033[0m")
-        if not os.access(file, os.R_OK):
-            print(p_warn + file + ": Cannot read this file")
-            return
-        if file.endswith("/Makefile"):
-            file = Makefile(file, self)
-            file.check()
-        elif file.endswith(".c"):
-            file = Cfile(file, self)
-            file.check()
-        elif file.endswith(".h"):
-            file = Hfile(file, self)
-            file.check()
-        else:
-            self.major("O1 / O2", file, None, "Unknown file type !")
-
-    def check_folder(self, path):
-        if not is_snake_case(path):
-            self.major("O4", path, None, "Folders names must respect the snake_case convention !")
-        if not os.access(path, os.R_OK):
-            print(p_warn + path + ": Cannot open this folder")
-            return
-        for element in os.listdir(path):
-            if self.recursive and os.path.isdir(element) and not element.startswith(".") and element != "bonus":
-                self.check_folder(path + "/" + element)
-            elif not element.startswith("."):
-                self.check_file(path + "/" + element)
-
-    def endprint(self):
-        print("\033[1;31m[MAJOR]\033[0m " + str(self.maj) + " | \033[1;32m[MINOR]\033[0m " + str(self.min) + " | \033[1;34m[INFO]\033[0m " + str(self.inf))
-
-
-def is_snake_case(string):
-    return string == string.lower()
-
-def getFuncNumber(string):
-    tmp = 0
-    counter = 0
-    for line in string:
-        if (re.search(".*\(.*\)$", line)):
-            tmp = 1
-        elif tmp == 1 and line == "{":
-            tmp = 0
-            counter += 1
-    return counter
+opt = Options()
+files = []
 
 def help():
     print("\033[0;36mCnormChecker\033[1;33m", VERSION, "\033[0m")
@@ -245,18 +63,205 @@ def argError():
     print("\tType '" + sys.argv[0] + " --help' for help.")
     exit(1)
 
-def readFile(checker, file):
+
+class Error(object):
+
+    def __init__(self, err, code, file, line, msg):
+        super(Error, self).__init__()
+        self.type = err
+        self.code = code
+        self.file = file
+        self.line = (line + 1 if line else None)
+        self.msg = msg
+    
+    def print(self):
+        if self.type == "major":
+            print(p_major, (self.type if self.type else ""))
+        elif self.type == "minor":
+            print(p_minor, (self.type if self.type else ""))
+        elif self.type == "info":
+            print(p_info, (self.type if self.type else ""))
+        print(self.file + "\033[0m:" + (str(self.line) + ": " if self.line else " ") + self.msg + "\n")
+
+
+class File(object):
+
+    def __init__(self, path):
+        self.path = path
+        if not os.access(self.path, os.R_OK):
+            print(p_warn, self.path + ": Cannot read this file")
+            self.type = "Error"
+        elif self.path.endswith("Makefile"):
+            self.type = "M"
+        elif self.path.endswith(".c"):
+            self.type = "C"
+        elif self.path.endswith(".h"):
+            self.type = "H"
+        else:
+            self.type = "Unknown"
+        if self.type != "Unknown" and self.type != "Error":
+            with open(self.path, "r") as file:
+                self.content = file.readlines()
+        else:
+            self.content = None
+        self.errors = []
+        self.check()
+    
+    def check(self):
+        if self.path != self.path.lower():
+            self.errors.append(Error(MAJOR, "O4", self.path, None, "Folders names must respect the snake_case convention !"))
+        if self.type == "C":
+            self.checkC()
+        elif self.type == "H":
+            self.checkH()
+        elif self.type == "M":
+            self.checkM()
+    
+    def checkC(self):
+        with open(self.path, "r") as file:
+            string = file.read().splitlines()
+            headersize = check_header(self, string, self.path)
+            indent = []
+            emptyLine = 0
+            inBlockCounter = 0
+            if getFuncNumber(string) > 5:
+                self.errors.append(Error(MAJOR, "O3", self.path, None, "Too much functions in file !"))
+            for lcount, line in enumerate(string):
+                if lcount < headersize:
+                    continue
+                elif lcount == headersize and line != "":
+                    self.errors.append(Error(INFO, None, self.path, lcount, "Missing new line after header !"))
+                elif lcount == headersize:
+                    continue
+                if len(line) > 80:
+                    self.errors.append(Error(MAJOR, "F3", self.path, lcount, "The length of a line should not exceed 80 columns"))
+                if emptyLine == 1:
+                    if line != "":
+                        self.errors.append(Error(MINOR, "G2", self.path, lcount, "One and only one empty line should separate the implementation of functions"))
+                    emptyLine = 0
+                elif emptyLine == 2:
+                    emptyLine = 0
+                elif line == "":
+                    self.errors.append(Error(MINOR, "G2", self.path, lcount, "One and only one empty line should separate the implementation of functions"))
+                if re.search(".*\}.*", line) and not re.search(".*\{.*", line):
+                    indent.pop()
+                    if len(indent) == 0:
+                        emptyLine = 1
+                elif len(indent) == 0 and re.search("\#.*", line):
+                    emptyLine = 2
+                if len(indent) == 0 and line != "" and re.search("^ ", line):
+                    self.errors.append(Error(MINOR, "L2", self.path, lcount, "Bad indentation"))
+                    if not opt.silent and opt.debug:
+                        print("\033[1;31m", end="")
+                elif len(indent) > 0 and line != "" and not re.search("^(    ){" + str(len(indent)) + "}\S+.*", line):
+                    self.errors.append(Error(MINOR, "L2", self.path, lcount, "Bad indentation"))
+                    if not opt.silent and opt.debug:
+                        print("\033[1;31m", end="")
+                if not opt.silent and opt.debug:
+                    print(indent, ": " + line + "\033[0m")
+                if len(indent) > 0 and re.search(".*\/\/.*", line):
+                    self.errors.append(Error(MINOR, "F6", self.path, lcount, "There should be no comment inside a function"))
+                if re.search(".*\{.*", line) and not re.search(".*\}.*", line):
+                    indent.append("block")
+                    if len(indent) > 3:
+                        self.errors.append(Error(MINOR, "C1", self.path, lcount, "Conditional branching"))
+                elif re.search(".*for.*", line) or re.search(".*while.*", line) or re.search(".*if.*", line) or re.search(".*else if.*", line) or re.search(".*else.*", line):
+                    indent.append("once")
+                    if len(indent) > 3:
+                        self.errors.append(Error(MINOR, "C1", self.path, lcount, "Conditional branching"))
+                elif len(indent) > 0 and indent[len(indent) - 1] == "once":
+                    while indent[len(indent) - 1] == "once":
+                        indent.pop()
+                if len(indent) > 0:
+                    inBlockCounter += 1
+                else:
+                    inBlockCounter = 0
+                if inBlockCounter == 22:
+                    self.errors.append(Error(MAJOR, "F4", self.path, lcount, "Too much lines in function !"))
+                elif inBlockCounter > 22 and not (inBlockCounter - 2) % 5:
+                    self.errors.append(Error(MAJOR, "F4", self.path, lcount, "Too much lines in function (" + str(inBlockCounter - 1) + ") !"))
+    
+    def checkH(self):
+        print(self.path + ": Header files not handeled for now !\n")
+    
+    def checkM(self):
+        print(self.path + ": Makefiles not handeled for now !\n")
+
+
+def check_header(st, file, path):
+    lcount = 0
+    for line in file:
+        if lcount == 0 and not re.search("^\/\*$", line):
+            st.errors.append(Error(MAJOR, "G1", path, lcount, "Invalid file header !"))
+            break
+        elif lcount == 1 and not re.search("^\*\* EPITECH PROJECT, (\d)+$", line):
+            st.errors.append(Error(MAJOR, "G1", path, lcount, "Invalid file header !"))
+            break
+        elif lcount == 2 and not re.search("^\*\* .+$", line):
+            st.errors.append(Error(MAJOR, "G1", path, lcount, "Invalid file header !"))
+            break
+        elif lcount == 3 and not re.search("^\*\* File description:$", line):
+            st.errors.append(Error(MAJOR, "G1", path, lcount, "Invalid file header !"))
+            break
+        elif lcount == 4 and not re.search("^\*\* .+$", line):
+            st.errors.append(Error(MAJOR, "G1", path, lcount, "Invalid file header !"))
+            break
+        elif lcount == 5 and not re.search("^\*\/$", line):
+            st.errors.append(Error(MAJOR, "G1", path, lcount, "Invalid file header !"))
+            break
+        elif lcount == 6:
+            return lcount
+        lcount += 1
+    return lcount
+
+def getFuncNumber(string):
+    tmp = 0
+    counter = 0
+    for line in string:
+        if (re.search(".*\(.*\)$", line)):
+            tmp = 1
+        elif tmp == 1 and line == "{":
+            tmp = 0
+            counter += 1
+    return counter
+
+def readFile(file):
     try:
         md = os.stat(file).st_mode
     except:
-        print(p_err + file + ": No such file or directory")
+        print(p_err, file + ": No such file or directory")
         exit(2)
     if stat.S_ISDIR(md):
-        checker.check_folder(file)
+        readFolder(file)
     elif stat.S_ISREG(md):
-        checker.check_file(file)
+        files.append(File(file))
     else:
-        print(p_err + file + ": Invalid file")
+        print(p_err, file + ": Invalid file")
+
+def readFolder(path):
+    if not os.access(path, os.R_OK):
+        print(p_warn, path + ": Cannot open this folder")
+        return
+    for element in os.listdir(path):
+        if opt.recursive and os.path.isdir(element) and not element.startswith(".") and element != "bonus":
+            readFolder(path + "/" + element)
+        elif not element.startswith("."):
+            files.append(File(path + "/" + element))
+
+def endprint():
+    major_nb = 0
+    minor_nb = 0
+    info_nb = 0
+    for file in files:
+        for error in file.errors:
+            error.print()
+            if error.type == MAJOR:
+                major_nb += 1
+            elif error.type == MINOR:
+                minor_nb += 1
+            elif error.type == INFO:
+                info_nb += 1
+    print("\033[1;31m[MAJOR]\033[0m " + str(major_nb) + " | \033[1;32m[MINOR]\033[0m " + str(minor_nb) + " | \033[1;34m[INFO]\033[0m " + str(info_nb))
 
 def main():
     args = sys.argv.copy()
@@ -265,30 +270,26 @@ def main():
         optlist, args = getopt.getopt(args, "RDs", ["recursive", "debug", "silent"])
     except:
         argError()
-    files = []
-    recursive = False
-    debug = False
-    silent = False
+    Rfiles = []
     if len(args) <= 0:
-        files.append(".")
-        recursive = True
+        Rfiles.append(".")
+        opt.recursive = True
     else:
         for arg in args:
-            files.append(arg)
-        for opt in optlist:
-            if (opt[0] == "-R" or opt[0] =="--recursive") and not opt[1]:
-                recursive = True
-            elif (opt[0] == "-D" or opt[0] =="--debug") and not opt[1]:
-                debug = True
-            elif (opt[0] == "-s" or opt[0] =="--silent") and not opt[1]:
-                silent = True
+            Rfiles.append(arg)
+        for optelement in optlist:
+            if (optelement[0] == "-R" or optelement[0] =="--recursive") and not optelement[1]:
+                opt.recursive = True
+            elif (optelement[0] == "-D" or optelement[0] =="--debug") and not optelement[1]:
+                opt.debug = True
+            elif (optelement[0] == "-s" or optelement[0] =="--silent") and not optelement[1]:
+                opt.silent = True
             else:
                 argError()
-    checker = Checker(debug, recursive, silent)
-    for file in files:
-        readFile(checker, file)
+    for file in Rfiles:
+        readFile(file)
     print()
-    checker.endprint()
+    endprint()
 
 if __name__ == "__main__":
     if len(sys.argv) == 2:
