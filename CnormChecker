@@ -182,7 +182,7 @@ class File(object):
                 emptyLine = 0
             elif line == "\n":
                 self.errors.append(Error(MINOR, "G2", self.path, lcount, "One and only one empty line should separate the implementation of functions"))
-            if re.search(".*\}.*", line) and not re.search(".*\{.*", line):
+            if (len(indent) > 0 and re.search("^(    ){" + str(len(indent) - 1) + "}\#endif", line)) or (re.search(".*\}.*", line) and not re.search(".*\{.*", line)):
                 indent.pop()
                 if len(indent) == 0:
                     emptyLine = 1
@@ -192,12 +192,15 @@ class File(object):
                 self.errors.append(Error(MINOR, "L2", self.path, lcount, "Bad indentation"))
             elif len(indent) > 0 and line != "\n" and not re.search("^(    ){" + str(len(indent)) + "}\S+.*", line):
                 self.errors.append(Error(MINOR, "L2", self.path, lcount, "Bad indentation"))
+            print(indent, "\t\t\t\t|", end=line)
             if len(indent) > 0 and (re.search(".*\/\/.*", line) or re.search(".*\/\*.*", line)):
                 self.errors.append(Error(MINOR, "F6", self.path, lcount, "There should be no comment inside a function"))
             if re.search(".*\{.*", line) and not re.search(".*\}.*", line):
                 indent.append("block")
                 if len(indent) > 3:
                     self.errors.append(Error(MINOR, "C1", self.path, lcount, "Conditional branching"))
+            elif re.search("^(    ){" + str(len(indent)) + "}\#ifdef", line) or re.search("^(    ){" + str(len(indent)) + "}\#ifndef", line):
+                indent.append("prepro")
             elif re.search(".*for.*", line) or re.search(".*while.*", line) or re.search(".*if.*", line) or re.search(".*else if.*", line) or re.search(".*else.*", line):
                 indent.append("once")
                 if len(indent) > 3:
