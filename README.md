@@ -3,6 +3,37 @@ A simple Python script to check the Epitech C coding style.
 
 [Epitech C coding style document](epitech_c_coding_style.pdf)
 
+## Usage
+```
+$ ./CnormChecker --help
+
+DEFAULT BEHAVIOR:
+	Check every files in the current folder recursively
+
+USAGE:
+	 ./CnormChecker [OPTIONS] [FILES / FOLDERS]
+
+OPTIONS:
+	-h,--help
+		Print this help message.
+	-v,--version
+		Show version information.
+	-s,--silent
+		Enable silent mode.
+	-c,--nocolor
+		Enable nocolor output mode.
+	-D,--debug
+		Add some debug output.
+	-R,--recursive
+		Enable recursive mode.
+
+ARGS:
+	<FILE>
+		File(s) to check.
+	<FOLDER>
+		Folder(s) that every files inside will be check.
+```
+
 ## Color code
 - ![#f03c15](https://placehold.it/15/f03c15/000000?text=+)  Major mistake
 - ![#c5f015](https://placehold.it/15/c5f015/000000?text=+)  Minor mistake
